@@ -53,8 +53,55 @@ class YahooFantasyClient:
                 client_secret=self.client_secret,
                 refresh_token=self.refresh_token
             )
-        except ValueError as e:
-            if "refresh token" in str(e).lower():
+        except (UnicodeDecodeError, ValueError, EOFError, OSError) as e:
+            # Handle corrupted cache file or invalid refresh token
+            if isinstance(e, (UnicodeDecodeError, EOFError)) or "utf-8" in str(e).lower():
+                # Corrupted cache file
+                logger.warning(f"Authentication cache appears corrupted: {e}")
+                logger.info("Attempting to clear cache and re-authenticate...")
+                
+                # Try to find and remove the corrupted cache file
+                cache_locations = [
+                    Path('.') / 'yahoo_fantasy.yahoofantasy',
+                    Path('.') / f'{self.persist_key}.yahoofantasy',
+                    Path.home() / '.cache' / 'yahoofantasy',
+                    Path.home() / '.yahoofantasy',
+                ]
+                
+                cache_cleared = False
+                for cache_path in cache_locations:
+                    if cache_path.exists():
+                        try:
+                            if cache_path.is_file():
+                                cache_path.unlink()
+                                logger.info(f"Removed corrupted cache file: {cache_path}")
+                                cache_cleared = True
+                            elif cache_path.is_dir():
+                                import shutil
+                                shutil.rmtree(cache_path)
+                                logger.info(f"Removed corrupted cache directory: {cache_path}")
+                                cache_cleared = True
+                        except Exception as cleanup_error:
+                            logger.warning(f"Could not remove cache at {cache_path}: {cleanup_error}")
+                
+                # Retry authentication after clearing cache
+                if cache_cleared:
+                    try:
+                        self.ctx = Context(
+                            persist_key="yahoo_fantasy",
+                            client_id=self.client_id,
+                            client_secret=self.client_secret,
+                            refresh_token=self.refresh_token
+                        )
+                        logger.info("Successfully re-authenticated after clearing cache")
+                    except Exception as retry_error:
+                        logger.error(f"Failed to authenticate after clearing cache: {retry_error}")
+                        raise
+                else:
+                    logger.error("Could not clear corrupted cache - authentication failed")
+                    raise
+            elif isinstance(e, ValueError) and "refresh token" in str(e).lower():
+                # Invalid refresh token
                 print("Refresh token invalid or expired. Getting new token...")
                 self.refresh_token = get_refresh_token(self.client_id, self.client_secret)
                 self.ctx = Context(
