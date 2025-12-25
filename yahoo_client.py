@@ -306,10 +306,34 @@ class YahooFantasyClient:
                 season_data['draft_results'] = []
             
         except Exception as e:
-            print(f"Error fetching data for {year}: {e}")
+            error_str = str(e)
             import traceback
-            traceback.print_exc()
-            season_data['error'] = str(e)
+            
+            # Check if this is an authentication error (401)
+            if '401' in error_str or 'Unauthorized' in error_str or 'HTTPError' in str(type(e).__name__):
+                logger.warning(f"Authentication error (401) fetching season {year}: {e}")
+                season_data['error'] = f"Authentication error: Token may have expired. {str(e)}"
+                
+                # Try to re-authenticate and retry once
+                if retry_on_auth_error:
+                    try:
+                        logger.info(f"Attempting to re-authenticate and retry season {year}...")
+                        # Clear context and re-authenticate
+                        self.ctx = None
+                        self.authenticate()
+                        # Retry the fetch (but don't retry again to avoid infinite loop)
+                        logger.info(f"Retrying fetch for season {year} after re-authentication...")
+                        return self.fetch_season_data(year, retry_on_auth_error=False)
+                    except Exception as retry_error:
+                        logger.error(f"Failed to re-authenticate: {retry_error}")
+                        season_data['error'] = f"Authentication failed after retry: {str(retry_error)}"
+                else:
+                    logger.error(f"Authentication error occurred, but retry disabled or already attempted")
+            else:
+                # Other errors - log and continue
+                logger.error(f"Error fetching season {year}: {e}")
+                traceback.print_exc()
+                season_data['error'] = str(e)
             
         return season_data
     
