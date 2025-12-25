@@ -57,6 +57,9 @@ def fetch_league_data(refresh: bool = False, generate_ai: bool = False):
                 
         except Exception as e:
             print(f"Error fetching data: {e}")
+            if "UnicodeDecodeError" in str(type(e).__name__) or "utf-8" in str(e).lower():
+                print("\nNote: Authentication cache may be corrupted. The code will attempt to clear it on next run.")
+                print("You can also manually clear the cache by running: rm -rf ~/.cache/yahoofantasy* ~/.yahoofantasy*")
             print("\nTrying to use cached data if available...")
             all_data = data_manager.load_all_seasons(config.LEAGUE_START_YEAR, config.CURRENT_YEAR)
     else:
