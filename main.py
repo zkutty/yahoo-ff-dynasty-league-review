@@ -3,6 +3,8 @@ import sys
 from yahoo_client import YahooFantasyClient
 from data_manager import DataManager
 from data_cleaner import DataCleaner
+from draft_analyzer import DraftAnalyzer
+from trade_analyzer import TradeAnalyzer
 import config
 
 
@@ -44,9 +46,14 @@ def fetch_league_data(refresh: bool = False, generate_ai: bool = False):
             
             for year in range(config.LEAGUE_START_YEAR, config.CURRENT_YEAR + 1):
                 print(f"\nFetching {year} season data...")
-                season_data = client.fetch_season_data(year)
-                all_data[year] = season_data
-                data_manager.save_season_data(year, season_data)
+                try:
+                    season_data = client.fetch_season_data(year)
+                    all_data[year] = season_data
+                    data_manager.save_season_data(year, season_data)
+                except (ValueError, Exception) as e:
+                    print(f"  Skipping {year}: {e}")
+                    # Continue with other years even if one fails
+                    continue
                 
         except Exception as e:
             print(f"Error fetching data: {e}")
@@ -74,6 +81,46 @@ def fetch_league_data(refresh: bool = False, generate_ai: bool = False):
     # Extract key insights
     print("\nExtracting key insights...")
     insights = cleaner.get_key_insights()
+    
+    # Analyze draft data
+    print("\nAnalyzing draft data...")
+    draft_analyzer = DraftAnalyzer(all_data)
+    draft_analyses = draft_analyzer.analyze_all_drafts()
+    
+    # Save draft analyses
+    draft_analyzer.save_analyses(data_manager)
+    
+    if draft_analyses:
+        print("\nDraft Analysis Summary:")
+        if 'position_spending' in draft_analyses and not draft_analyses['position_spending'].empty:
+            print("\nTop Position Spending by Manager:")
+            print(draft_analyses['position_spending'].head(10).to_string())
+        
+        if 'keeper_analysis' in draft_analyses and not draft_analyses['keeper_analysis'].empty:
+            print("\nKeeper Analysis:")
+            print(draft_analyses['keeper_analysis'].to_string())
+        
+        if 'manager_draft_strategies' in draft_analyses and not draft_analyses['manager_draft_strategies'].empty:
+            print("\nDraft Strategies Summary:")
+            strategies_df = draft_analyses['manager_draft_strategies']
+            print(strategies_df[['manager', 'avg_spending_per_season', 'top_position_spent', 'top_position_pct', 'early_round_spending_pct', 'keeper_picks']].to_string())
+        
+        # Generate detailed draft summary
+        try:
+            from draft_analysis_summary import generate_draft_summary
+            generate_draft_summary()
+        except Exception as e:
+            print(f"\nNote: Could not generate draft summary: {e}")
+    
+    # Analyze trades
+    print("\nAnalyzing trade data...")
+    trade_analyzer = TradeAnalyzer(all_data)
+    trade_analyses = trade_analyzer.analyze_all_trades()
+    trade_analyzer.save_analyses(data_manager)
+    
+    if trade_analyses and 'trade_frequency' in trade_analyses and not trade_analyses['trade_frequency'].empty:
+        print("\nTrade Frequency by Season:")
+        print(trade_analyses['trade_frequency'].to_string())
     
     # Show basic statistics
     print("\n" + "=" * 60)

@@ -81,21 +81,64 @@ class YahooFantasyClient:
             
         # Get all leagues for the current game and season
         # yahoofantasy requires: get_leagues(game, season)
-        leagues = self.ctx.get_leagues(game_id, year)
+        try:
+            leagues = self.ctx.get_leagues(game_id, year)
+        except (TypeError, KeyError, AttributeError) as e:
+            # Handle cases where the API doesn't have data for this year
+            # This can happen for very old years or if the league didn't exist yet
+            raise ValueError(
+                f"Cannot access leagues for year {year}. The league may not exist for this year, "
+                f"or Yahoo API data is unavailable. Original error: {e}"
+            )
         
         # Find the specific league
-        # Try matching by league_id or league_key
+        # First try matching by league_id or league_key (works for current year)
         for league in leagues:
             league_id_match = hasattr(league, 'league_id') and str(league.league_id) == str(self.league_id)
             league_key_match = hasattr(league, 'league_key') and str(self.league_id) in str(league.league_key)
             
             if league_id_match or league_key_match:
-                self.league = league
+                # Store as current league only if it's the current year
+                if year == config.CURRENT_YEAR:
+                    self.league = league
                 return league
+        
+        # If not found by ID, try matching by league name
+        # First, get the league name from current year if we don't have it cached
+        if not hasattr(self, '_league_name') or not self._league_name:
+            try:
+                current_leagues = self.ctx.get_leagues(game_id, config.CURRENT_YEAR)
+                if current_leagues:
+                    for league in current_leagues:
+                        league_id_match = hasattr(league, 'league_id') and str(league.league_id) == str(self.league_id)
+                        league_key_match = hasattr(league, 'league_key') and str(self.league_id) in str(league.league_key)
+                        if league_id_match or league_key_match:
+                            self._league_name = getattr(league, 'name', '')
+                            if year == config.CURRENT_YEAR:
+                                self.league = league
+                            break
+            except Exception as e:
+                # If we can't get current year leagues, that's ok - we'll try other methods
+                pass
+        
+        # Try matching by name (league IDs change year-to-year, but names usually stay the same)
+        if hasattr(self, '_league_name') and self._league_name:
+            for league in leagues:
+                if hasattr(league, 'name') and getattr(league, 'name', '') == self._league_name:
+                    # Only cache as self.league if it's the current year
+                    if year == config.CURRENT_YEAR:
+                        self.league = league
+                    return league
+        
+        # If still not found and only one league available, use it
+        if len(leagues) == 1:
+            if year == config.CURRENT_YEAR:
+                self.league = leagues[0]
+            return leagues[0]
                 
         raise ValueError(
-            f"League {self.league_id} not found. "
-            f"Available leagues: {[getattr(l, 'league_id', getattr(l, 'league_key', 'unknown')) for l in leagues]}. "
+            f"League {self.league_id} not found for year {year}. "
+            f"Available leagues: {[(getattr(l, 'name', 'unknown'), getattr(l, 'league_id', getattr(l, 'league_key', 'unknown'))) for l in leagues]}. "
             f"Make sure the league ID is correct."
         )
     
@@ -111,14 +154,14 @@ class YahooFantasyClient:
         Returns:
             Dictionary containing all season data
         """
-        # Try to get league for this specific year
-        # Note: Yahoo API structure may require different approach for historical data
+        # Get league for this specific year - important for getting correct draft data
+        # Do NOT fall back to current league - this would give wrong data for historical seasons
         try:
-            self.get_league(year=year)
-        except:
-            # Fall back to current league if year-specific lookup fails
-            if not self.league:
-                self.get_league()
+            league_for_year = self.get_league(year=year)
+        except Exception as e:
+            print(f"Error: Could not get league for year {year}: {e}")
+            # Don't fall back - raise the error so we know data is missing
+            raise ValueError(f"Cannot fetch data for year {year}: {e}")
             
         season_data = {
             'year': year,
@@ -131,18 +174,21 @@ class YahooFantasyClient:
         }
         
         try:
+            # Use the league for this specific year
+            league = league_for_year
+            
             # Get league settings (access attributes directly)
-            season_data['settings'] = self._serialize_settings(self.league)
+            season_data['settings'] = self._serialize_settings(league)
             
             # Get standings first (we need this to get team stats)
-            standings = self.league.standings()
+            standings = league.standings()
             season_data['standings'] = [self._serialize_standings(s) for s in standings]
             
             # Create a lookup dict for team stats from standings
             standings_lookup = {s['team_key']: s for s in season_data['standings']}
             
             # Get teams (call as method)
-            teams = self.league.teams()
+            teams = league.teams()
             for team in teams:
                 team_data = self._fetch_team_data(team, year)
                 # Update team data with stats from standings
@@ -157,7 +203,7 @@ class YahooFantasyClient:
                 season_data['teams'].append(team_data)
             
             # Get matchups/weeks (call as method)
-            weeks = self.league.weeks()
+            weeks = league.weeks()
             for week in weeks:
                 if hasattr(week, 'start') and hasattr(week.start, 'year'):
                     week_year = week.start.year
@@ -175,11 +221,21 @@ class YahooFantasyClient:
                         season_data['matchups'].append(matchup_data)
             
             # Get transactions (call as method)
-            transactions = self.league.transactions()
+            transactions = league.transactions()
             season_data['transactions'] = [
                 self._serialize_transaction(t) for t in transactions
                 if hasattr(t, 'timestamp') and hasattr(t.timestamp, 'year') and t.timestamp.year == year
             ]
+            
+            # Get draft results - use league for this specific year to get correct draft data
+            try:
+                draft_results = league.draft_results()
+                season_data['draft_results'] = [self._serialize_draft_pick(pick, year) for pick in draft_results]
+                if draft_results:
+                    print(f"  Fetched {len(draft_results)} draft picks for {year}")
+            except Exception as e:
+                print(f"Error fetching draft results for {year}: {e}")
+                season_data['draft_results'] = []
             
         except Exception as e:
             print(f"Error fetching data for {year}: {e}")
@@ -345,12 +401,88 @@ class YahooFantasyClient:
     
     def _serialize_transaction(self, transaction) -> Dict:
         """Serialize transaction to dictionary."""
-        return {
+        # Get additional details for trades
+        transaction_data = {
             'transaction_id': getattr(transaction, 'transaction_id', ''),
             'type': getattr(transaction, 'type', ''),
             'timestamp': str(getattr(transaction, 'timestamp', '')),
             'status': getattr(transaction, 'status', ''),
         }
+        
+        # For trades, try to get additional info
+        if hasattr(transaction, 'players'):
+            # Trade transactions have players field
+            try:
+                players = getattr(transaction, 'players', [])
+                transaction_data['num_players_involved'] = len(players) if players else 0
+                # Could extract team keys, player keys, etc. here
+            except:
+                pass
+        
+        return transaction_data
+    
+    def _serialize_draft_pick(self, pick, year: int) -> Dict:
+        """Serialize draft pick to dictionary."""
+        try:
+            player = getattr(pick, 'player', None)
+            player_name = ''
+            player_id = ''
+            position = ''
+            is_keeper = False
+            
+            if player:
+                if hasattr(player, 'name'):
+                    name_obj = getattr(player, 'name', None)
+                    if hasattr(name_obj, 'full'):
+                        player_name = getattr(name_obj, 'full', '')
+                    elif isinstance(name_obj, str):
+                        player_name = name_obj
+                
+                player_id = getattr(player, 'player_id', '')
+                position = getattr(player, 'primary_position', '')
+                
+                # is_keeper can be an object or boolean
+                # For dynasty leagues, we need to check if this player was kept from previous year
+                is_keeper_obj = getattr(player, 'is_keeper', False)
+                is_keeper = False
+                if isinstance(is_keeper_obj, bool):
+                    is_keeper = is_keeper_obj
+                elif hasattr(is_keeper_obj, 'kept'):
+                    # APIAttr object with kept attribute - check if it has a truthy value
+                    kept_val = getattr(is_keeper_obj, 'kept', {})
+                    # If kept is a dict/object, check if it has content
+                    if kept_val:
+                        if isinstance(kept_val, dict):
+                            # If dict has any keys, it's a keeper
+                            is_keeper = len(kept_val) > 0
+                        else:
+                            is_keeper = bool(kept_val)
+                elif isinstance(is_keeper_obj, dict):
+                    kept_val = is_keeper_obj.get('kept', {})
+                    if kept_val:
+                        is_keeper = len(kept_val) > 0 if isinstance(kept_val, dict) else bool(kept_val)
+            
+            # Get team info
+            team_key = getattr(pick, 'team_key', '')
+            
+            return {
+                'season_year': year,
+                'round': getattr(pick, 'round', 0),
+                'pick': getattr(pick, 'pick', 0),
+                'team_key': team_key,
+                'player_key': getattr(pick, 'player_key', ''),
+                'player_id': player_id,
+                'player_name': player_name,
+                'position': position,
+                'cost': getattr(pick, 'cost', 0),  # Auction price
+                'is_keeper': is_keeper,
+            }
+        except Exception as e:
+            print(f"Error serializing draft pick: {e}")
+            return {
+                'season_year': year,
+                'error': str(e)
+            }
     
     def fetch_all_seasons(self, start_year: int, end_year: int) -> Dict[int, Dict]:
         """Fetch data for all seasons from start_year to end_year.
