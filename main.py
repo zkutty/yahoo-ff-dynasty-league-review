@@ -8,7 +8,7 @@ from trade_analyzer import TradeAnalyzer
 import config
 
 
-def fetch_league_data(refresh: bool = False, generate_ai: bool = False):
+def fetch_league_data(refresh: bool = False, generate_ai: bool = False, start_year: int = None, end_year: int = None):
     """Fetch league data from Yahoo Fantasy API.
     
     Args:
@@ -37,14 +37,18 @@ def fetch_league_data(refresh: bool = False, generate_ai: bool = False):
     # Fetch data for all seasons
     all_data = {}
     
+    # Use provided years or default to config values
+    start = start_year if start_year is not None else config.LEAGUE_START_YEAR
+    end = end_year if end_year is not None else config.CURRENT_YEAR
+    
     if refresh:
-        print(f"\nFetching fresh data from Yahoo API for years {config.LEAGUE_START_YEAR}-{config.CURRENT_YEAR}...")
+        print(f"\nFetching fresh data from Yahoo API for years {start}-{end}...")
         
         try:
             client.authenticate()
             client.get_league()
             
-            for year in range(config.LEAGUE_START_YEAR, config.CURRENT_YEAR + 1):
+            for year in range(start, end + 1):
                 print(f"\nFetching {year} season data...")
                 try:
                     season_data = client.fetch_season_data(year)
@@ -61,10 +65,10 @@ def fetch_league_data(refresh: bool = False, generate_ai: bool = False):
                 print("\nNote: Authentication cache may be corrupted. The code will attempt to clear it on next run.")
                 print("You can also manually clear the cache by running: rm -rf ~/.cache/yahoofantasy* ~/.yahoofantasy*")
             print("\nTrying to use cached data if available...")
-            all_data = data_manager.load_all_seasons(config.LEAGUE_START_YEAR, config.CURRENT_YEAR)
+            all_data = data_manager.load_all_seasons(start, end)
     else:
-        print(f"\nLoading cached data from {config.LEAGUE_START_YEAR}-{config.CURRENT_YEAR}...")
-        all_data = data_manager.load_all_seasons(config.LEAGUE_START_YEAR, config.CURRENT_YEAR)
+        print(f"\nLoading cached data from {start}-{end}...")
+        all_data = data_manager.load_all_seasons(start, end)
         
         if not all_data:
             print("No cached data found. Use --refresh flag to fetch from Yahoo API.")
