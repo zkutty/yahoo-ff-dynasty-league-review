@@ -1,0 +1,139 @@
+"""Main application script for Yahoo Fantasy Football League Review."""
+import sys
+from yahoo_client import YahooFantasyClient
+from data_manager import DataManager
+from data_cleaner import DataCleaner
+import config
+
+
+def fetch_league_data(refresh: bool = False, generate_ai: bool = False):
+    """Fetch league data from Yahoo Fantasy API.
+    
+    Args:
+        refresh: If True, fetch fresh data even if cached data exists
+        generate_ai: If True, generate AI-powered insights (requires OpenAI API key)
+    """
+    print("=" * 60)
+    print("Yahoo Fantasy Football League Review App")
+    print("=" * 60)
+    
+    # Validate configuration
+    if not all([config.YAHOO_CLIENT_ID, config.YAHOO_CLIENT_SECRET, config.YAHOO_LEAGUE_ID]):
+        print("ERROR: Missing required configuration. Please check your .env file.")
+        print("Required: YAHOO_CLIENT_ID, YAHOO_CLIENT_SECRET, YAHOO_LEAGUE_ID")
+        sys.exit(1)
+    
+    
+    data_manager = DataManager()
+    client = YahooFantasyClient(
+        client_id=config.YAHOO_CLIENT_ID,
+        client_secret=config.YAHOO_CLIENT_SECRET,
+        league_id=config.YAHOO_LEAGUE_ID,
+        refresh_token=config.YAHOO_REFRESH_TOKEN
+    )
+    
+    # Fetch data for all seasons
+    all_data = {}
+    
+    if refresh:
+        print(f"\nFetching fresh data from Yahoo API for years {config.LEAGUE_START_YEAR}-{config.CURRENT_YEAR}...")
+        
+        try:
+            client.authenticate()
+            client.get_league()
+            
+            for year in range(config.LEAGUE_START_YEAR, config.CURRENT_YEAR + 1):
+                print(f"\nFetching {year} season data...")
+                season_data = client.fetch_season_data(year)
+                all_data[year] = season_data
+                data_manager.save_season_data(year, season_data)
+                
+        except Exception as e:
+            print(f"Error fetching data: {e}")
+            print("\nTrying to use cached data if available...")
+            all_data = data_manager.load_all_seasons(config.LEAGUE_START_YEAR, config.CURRENT_YEAR)
+    else:
+        print(f"\nLoading cached data from {config.LEAGUE_START_YEAR}-{config.CURRENT_YEAR}...")
+        all_data = data_manager.load_all_seasons(config.LEAGUE_START_YEAR, config.CURRENT_YEAR)
+        
+        if not all_data:
+            print("No cached data found. Use --refresh flag to fetch from Yahoo API.")
+            sys.exit(1)
+    
+    print(f"\nLoaded data for {len(all_data)} seasons: {list(all_data.keys())}")
+    
+    # Clean and organize data
+    print("\nCleaning and organizing data...")
+    cleaner = DataCleaner(all_data)
+    cleaned_data = cleaner.clean_all_data()
+    
+    # Save cleaned data
+    for name, df in cleaned_data.items():
+        data_manager.save_cleaned_data(name, df)
+    
+    # Extract key insights
+    print("\nExtracting key insights...")
+    insights = cleaner.get_key_insights()
+    
+    # Show basic statistics
+    print("\n" + "=" * 60)
+    print("KEY STATISTICS")
+    print("=" * 60)
+    if 'managers' in cleaned_data and not cleaned_data['managers'].empty:
+        managers_df = cleaned_data['managers']
+        print("\nTop Managers by Wins:")
+        print(managers_df.nlargest(5, 'total_wins')[['manager_name', 'total_wins', 'championships', 'win_percentage']].to_string())
+        
+        print("\nChampionship Leaders:")
+        print(managers_df.nlargest(5, 'championships')[['manager_name', 'championships', 'total_wins', 'win_percentage']].to_string())
+    
+    # Generate OpenAI insights if requested (separate module to save API costs)
+    if generate_ai:
+        try:
+            from ai_insights import generate_all_insights
+            generate_all_insights(insights, cleaned_data)
+        except ImportError:
+            print("\nERROR: Could not import ai_insights module")
+        except Exception as e:
+            print(f"\nERROR generating AI insights: {e}")
+    else:
+        print("\n" + "=" * 60)
+        print("AI INSIGHTS")
+        print("=" * 60)
+        print("Skipped. Use --generate-ai flag to generate AI-powered insights.")
+        print("Note: This will use your OpenAI API and may incur costs.")
+    
+    print("\n" + "=" * 60)
+    print("Data processing complete!")
+    print(f"Check the '{config.INSIGHTS_DIR}' directory for generated insights.")
+    print(f"Check the '{config.CLEANED_DATA_DIR}' directory for cleaned data files.")
+    print("=" * 60)
+
+
+def main():
+    """Main entry point."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(
+        description="Yahoo Fantasy Football League Review App"
+    )
+    parser.add_argument(
+        '--refresh',
+        action='store_true',
+        help='Fetch fresh data from Yahoo API (ignores cached data)'
+    )
+    parser.add_argument(
+        '--generate-ai',
+        action='store_true',
+        help='Generate AI-powered insights (requires OpenAI API key and incurs costs)'
+    )
+    
+    args = parser.parse_args()
+    
+    # Run the main function
+    fetch_league_data(refresh=args.refresh, generate_ai=args.generate_ai)
+
+
+if __name__ == "__main__":
+    main()
+
