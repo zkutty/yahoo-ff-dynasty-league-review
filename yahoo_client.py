@@ -193,7 +193,7 @@ class YahooFantasyClient:
             f"Make sure the league ID is correct."
         )
     
-    def fetch_season_data(self, year: int) -> Dict:
+    def fetch_season_data(self, year: int, retry_on_auth_error: bool = True) -> Dict:
         """Fetch all data for a specific season.
         
         Note: For historical seasons, you may need to specify the league_key
@@ -332,8 +332,14 @@ class YahooFantasyClient:
                             fantasy_points = float(getattr(points_obj, 'total', 0))
                         elif isinstance(points_obj, dict):
                             fantasy_points = float(points_obj.get('total', points_obj.get('points', 0)))
-                    except Exception:
-                        # Silently fail - points may not be available for all players
+                    except Exception as e:
+                        # Handle 401 Unauthorized - token might be expired
+                        error_str = str(e)
+                        if '401' in error_str or 'Unauthorized' in error_str:
+                            logger.debug(f"Unauthorized error fetching points for player {getattr(player, 'player_id', 'unknown')}: {e}")
+                            # Don't raise - just skip this player's points
+                            # The token issue should be handled at a higher level
+                        # Silently fail for other errors - points may not be available for all players
                         pass
                 
                 player_data = {
