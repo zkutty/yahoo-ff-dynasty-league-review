@@ -181,11 +181,28 @@ def main():
         action='store_true',
         help='Generate AI-powered insights (requires OpenAI API key and incurs costs)'
     )
+    parser.add_argument(
+        '--start-year',
+        type=int,
+        default=None,
+        help=f'First year to fetch/analyze (default: {config.LEAGUE_START_YEAR})'
+    )
+    parser.add_argument(
+        '--end-year',
+        type=int,
+        default=None,
+        help=f'Last year to fetch/analyze (default: {config.CURRENT_YEAR})'
+    )
     
     args = parser.parse_args()
     
     # Run the main function
-    fetch_league_data(refresh=args.refresh, generate_ai=args.generate_ai)
+    fetch_league_data(
+        refresh=args.refresh, 
+        generate_ai=args.generate_ai,
+        start_year=args.start_year,
+        end_year=args.end_year
+    )
 
 
 if __name__ == "__main__":
