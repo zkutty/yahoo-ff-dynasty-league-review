@@ -201,6 +201,7 @@ class YahooFantasyClient:
         
         Args:
             year: The season year to fetch
+            retry_on_auth_error: If True, attempt to re-authenticate and retry on 401 errors
             
         Returns:
             Dictionary containing all season data
