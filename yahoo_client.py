@@ -2,11 +2,14 @@
 import os
 import json
 import time
+import logging
 from typing import Dict, List, Optional
 from yahoofantasy import Context
 from yahoofantasy.api.games import get_game_id
 import config
 from yahoo_oauth import get_refresh_token
+
+logger = logging.getLogger(__name__)
 
 
 class YahooFantasyClient:
@@ -222,10 +225,27 @@ class YahooFantasyClient:
             
             # Get transactions (call as method)
             transactions = league.transactions()
-            season_data['transactions'] = [
-                self._serialize_transaction(t) for t in transactions
-                if hasattr(t, 'timestamp') and hasattr(t.timestamp, 'year') and t.timestamp.year == year
-            ]
+            serialized_transactions = []
+            for t in transactions:
+                # Filter by year if timestamp has year attribute, otherwise include all
+                include = True
+                if hasattr(t, 'timestamp') and t.timestamp:
+                    try:
+                        if hasattr(t.timestamp, 'year'):
+                            include = t.timestamp.year == year
+                        elif isinstance(t.timestamp, (int, float)):
+                            # Unix timestamp - convert to year
+                            from datetime import datetime
+                            dt = datetime.fromtimestamp(int(t.timestamp))
+                            include = dt.year == year
+                    except:
+                        # If we can't determine year, include it
+                        pass
+                
+                if include:
+                    serialized_transactions.append(self._serialize_transaction(t))
+            
+            season_data['transactions'] = serialized_transactions
             
             # Get draft results - use league for this specific year to get correct draft data
             try:
@@ -252,12 +272,29 @@ class YahooFantasyClient:
             players = []
             # Roster.players is a list
             for player in roster.players:
+                # Try to get player points for the season
+                fantasy_points = None
+                if hasattr(player, 'get_points'):
+                    try:
+                        points_obj = player.get_points()
+                        # Points might be a number or dict/object
+                        if isinstance(points_obj, (int, float)):
+                            fantasy_points = float(points_obj)
+                        elif hasattr(points_obj, 'total'):
+                            fantasy_points = float(getattr(points_obj, 'total', 0))
+                        elif isinstance(points_obj, dict):
+                            fantasy_points = float(points_obj.get('total', points_obj.get('points', 0)))
+                    except Exception:
+                        # Silently fail - points may not be available for all players
+                        pass
+                
                 player_data = {
                     'player_id': getattr(player, 'player_id', ''),
                     'name': getattr(player.name, 'full', '') if hasattr(player, 'name') else '',
                     'position': getattr(player, 'primary_position', ''),
                     'status': getattr(player, 'status', ''),
-                    'selected_position': getattr(getattr(player, 'selected_position', {}), 'position', '') if hasattr(player, 'selected_position') else ''
+                    'selected_position': getattr(getattr(player, 'selected_position', {}), 'position', '') if hasattr(player, 'selected_position') else '',
+                    'fantasy_points_total': fantasy_points,
                 }
                 players.append(player_data)
             
@@ -400,26 +437,214 @@ class YahooFantasyClient:
         }
     
     def _serialize_transaction(self, transaction) -> Dict:
-        """Serialize transaction to dictionary."""
-        # Get additional details for trades
+        """Serialize transaction to dictionary with detailed player and team info."""
         transaction_data = {
             'transaction_id': getattr(transaction, 'transaction_id', ''),
+            'transaction_key': getattr(transaction, 'transaction_key', ''),
             'type': getattr(transaction, 'type', ''),
             'timestamp': str(getattr(transaction, 'timestamp', '')),
             'status': getattr(transaction, 'status', ''),
         }
         
-        # For trades, try to get additional info
-        if hasattr(transaction, 'players'):
-            # Trade transactions have players field
-            try:
+        # Extract involved players and teams
+        involved_players_list = []
+        faab_spent = None
+        waiver_priority = None
+        
+        try:
+            # Try involved_players first (for add/drop)
+            if hasattr(transaction, 'involved_players'):
+                involved_players = getattr(transaction, 'involved_players', [])
+                if involved_players:
+                    # involved_players might be iterable
+                    for player_obj in involved_players:
+                        player_info = self._extract_player_from_transaction(player_obj)
+                        if player_info:
+                            involved_players_list.append(player_info)
+            
+            # Also try players attribute (for trades)
+            if hasattr(transaction, 'players'):
                 players = getattr(transaction, 'players', [])
-                transaction_data['num_players_involved'] = len(players) if players else 0
-                # Could extract team keys, player keys, etc. here
-            except:
-                pass
+                if players and not involved_players_list:
+                    for player_obj in players:
+                        player_info = self._extract_player_from_transaction(player_obj)
+                        if player_info:
+                            involved_players_list.append(player_info)
+            
+            # Extract FAAB and waiver priority if available
+            # These might be in the transaction object or player objects
+            # Yahoo API structure may vary
+            
+        except Exception as e:
+            logger.debug(f"Error extracting transaction details: {e}")
+        
+        transaction_data['involved_players'] = involved_players_list
+        transaction_data['num_players_involved'] = len(involved_players_list)
+        transaction_data['faab_spent'] = faab_spent
+        transaction_data['waiver_priority'] = waiver_priority
         
         return transaction_data
+    
+    def _extract_player_from_transaction(self, player_obj) -> Dict:
+        """Extract player info from transaction player object.
+        
+        Args:
+            player_obj: Player object from transaction
+            
+        Returns:
+            Dictionary with player info or None
+        """
+        try:
+            player_info = {
+                'player_id': getattr(player_obj, 'player_id', None),
+                'player_key': getattr(player_obj, 'player_key', None),
+                'transaction_type': None,  # ADD, DROP, TRADE_IN, TRADE_OUT
+            }
+            
+            if not player_info['player_id']:
+                return None
+            
+            # Get player name
+            if hasattr(player_obj, 'name'):
+                name_obj = getattr(player_obj, 'name', None)
+                if hasattr(name_obj, 'full'):
+                    player_info['player_name'] = getattr(name_obj, 'full', '')
+                elif isinstance(name_obj, str):
+                    player_info['player_name'] = name_obj
+                else:
+                    player_info['player_name'] = ''
+            else:
+                player_info['player_name'] = ''
+            
+            # Get source/destination team (from_team, to_team in Yahoo API)
+            # Also check transaction_data for destination_team_key
+            from_team = None
+            to_team = None
+            
+            if hasattr(player_obj, 'from_team'):
+                from_team = getattr(player_obj, 'from_team', None)
+            
+            if hasattr(player_obj, 'to_team'):
+                to_team = getattr(player_obj, 'to_team', None)
+            
+            # Also check transaction_data for team keys
+            if hasattr(player_obj, 'transaction_data'):
+                txn_data = getattr(player_obj, 'transaction_data', None)
+                if txn_data:
+                    try:
+                        # Handle both dict and APIAttr
+                        if isinstance(txn_data, dict):
+                            if not to_team:
+                                to_team = txn_data.get('destination_team_key')
+                            if not from_team:
+                                from_team = txn_data.get('source_team_key')
+                        else:
+                            # APIAttr - use getattr
+                            if not to_team and hasattr(txn_data, 'destination_team_key'):
+                                to_team = getattr(txn_data, 'destination_team_key', None)
+                            if not from_team and hasattr(txn_data, 'source_team_key'):
+                                from_team = getattr(txn_data, 'source_team_key', None)
+                    except:
+                        pass
+            
+            player_info['from_team_key'] = from_team if isinstance(from_team, str) else None
+            player_info['to_team_key'] = to_team if isinstance(to_team, str) else None
+            
+            # Determine transaction type
+            # Check transaction_data first (most reliable source)
+            txn_type_from_data = None
+            if hasattr(player_obj, 'transaction_data'):
+                txn_data = getattr(player_obj, 'transaction_data', None)
+                # APIAttr objects can be accessed like dicts
+                if txn_data:
+                    try:
+                        if isinstance(txn_data, dict):
+                            txn_type_from_data = txn_data.get('type', None)
+                        elif hasattr(txn_data, 'type'):
+                            txn_type_from_data = getattr(txn_data, 'type', None)
+                        elif hasattr(txn_data, 'get'):
+                            txn_type_from_data = txn_data.get('type', None)
+                    except:
+                        pass
+            
+            # Use transaction_data type if available
+            if txn_type_from_data:
+                player_info['transaction_type'] = str(txn_type_from_data).upper()
+            else:
+                # Fallback: infer from team movements
+                from_team = player_info.get('from_team_key')
+                to_team = player_info.get('to_team_key')
+                
+                # Check if from/to are strings with 'freeagent'
+                from_is_fa = (
+                    isinstance(from_team, str) and 
+                    ('freeagent' in from_team.lower() or from_team.lower() == 'freeagents')
+                )
+                to_is_fa = (
+                    isinstance(to_team, str) and 
+                    ('freeagent' in to_team.lower() or to_team.lower() == 'freeagents')
+                )
+                
+                if from_team and to_team:
+                    if from_is_fa and not to_is_fa:
+                        player_info['transaction_type'] = 'ADD'  # From free agents to team = ADD
+                    elif not from_is_fa and to_is_fa:
+                        player_info['transaction_type'] = 'DROP'  # From team to free agents = DROP
+                    elif not from_is_fa and not to_is_fa:
+                        player_info['transaction_type'] = 'TRADE'  # Between teams = TRADE
+                    else:
+                        player_info['transaction_type'] = 'UNKNOWN'
+                elif to_team and not from_team:
+                    # Has destination but no source = ADD
+                    player_info['transaction_type'] = 'ADD'
+                elif from_team and not to_team:
+                    # Has source but no destination = DROP
+                    player_info['transaction_type'] = 'DROP'
+                else:
+                    player_info['transaction_type'] = 'UNKNOWN'
+            
+            # Get transaction details (FAAB, waiver priority)
+            faab_bid = None
+            waiver_priority = None
+            
+            if hasattr(player_obj, 'transaction_data'):
+                txn_data = getattr(player_obj, 'transaction_data', None)
+                if txn_data:
+                    try:
+                        # Handle both dict and APIAttr
+                        if isinstance(txn_data, dict):
+                            faab_bid = (
+                                txn_data.get('faab_bid') or 
+                                txn_data.get('amount') or 
+                                txn_data.get('faab_amount') or
+                                txn_data.get('bid_amount')
+                            )
+                            waiver_priority = (
+                                txn_data.get('priority') or
+                                txn_data.get('waiver_priority')
+                            )
+                        else:
+                            # APIAttr - try getattr
+                            faab_bid = (
+                                getattr(txn_data, 'faab_bid', None) or
+                                getattr(txn_data, 'amount', None) or
+                                getattr(txn_data, 'faab_amount', None)
+                            )
+                            waiver_priority = (
+                                getattr(txn_data, 'priority', None) or
+                                getattr(txn_data, 'waiver_priority', None)
+                            )
+                    except:
+                        pass
+            
+            player_info['faab_bid'] = faab_bid
+            player_info['waiver_priority'] = waiver_priority
+            
+            return player_info
+            
+        except Exception as e:
+            logger.debug(f"Error extracting player from transaction: {e}")
+            return None
     
     def _serialize_draft_pick(self, pick, year: int) -> Dict:
         """Serialize draft pick to dictionary."""
