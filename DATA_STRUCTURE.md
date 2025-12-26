@@ -445,3 +445,4 @@ Markdown summary report with key insights and statistics.
 - **Historical data**: Some fields (especially player stats) may be missing for older seasons due to Yahoo API limitations
 - **Transaction data**: Requires data refresh with `--refresh` flag to populate
 
+

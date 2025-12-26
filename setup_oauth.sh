@@ -36,3 +36,4 @@ echo ""
 echo "The refresh token has been saved by yahoofantasy."
 echo "You can now run: python main.py --refresh"
 
+

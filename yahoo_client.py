@@ -277,12 +277,24 @@ class YahooFantasyClient:
                     week_year = year  # Default to requested year
                     
                 if week_year == year or not hasattr(week, 'start'):
+                    week_num = getattr(week, 'week_num', getattr(week, 'week', 0))
                     week_matchups = week.matchups  # Access as attribute (it's a list)
                     for matchup in week_matchups:
-                        matchup_data = self._fetch_matchup_data(matchup)
-                        matchup_data['week'] = getattr(week, 'week_num', getattr(week, 'week', 0))
+                        matchup_data = self._fetch_matchup_data(matchup, week_num)
+                        matchup_data['week'] = week_num
                         matchup_data['season_year'] = year
                         season_data['matchups'].append(matchup_data)
+                        
+                        # Also fetch weekly rosters for lineup analysis
+                        try:
+                            weekly_rosters = self._fetch_weekly_rosters_from_matchup(matchup, year, week_num)
+                            if 'weekly_rosters' not in season_data:
+                                season_data['weekly_rosters'] = []
+                            season_data['weekly_rosters'].extend(weekly_rosters)
+                        except Exception as roster_error:
+                            logger.debug(f"Could not fetch weekly rosters for week {week_num}: {roster_error}")
+                            # Continue - weekly rosters are optional
+                            pass
             
             # Get transactions (call as method)
             transactions = league.transactions()
@@ -477,41 +489,186 @@ class YahooFantasyClient:
                 'season_year': year
             }
     
-    def _fetch_matchup_data(self, matchup) -> Dict:
-        """Fetch data for a matchup."""
+    def _fetch_matchup_data(self, matchup, week_num: int = 0) -> Dict:
+        """Fetch data for a matchup, including weekly points.
+        
+        According to Yahoo API docs, matchups from scoreboard contain teams with
+        team_points that have coverage_type='week' and total field for weekly points.
+        Access via matchup.teams.team[0] and matchup.teams.team[1].
+        """
         try:
-            # Matchup objects have team1 and team2 attributes directly
+            # Matchup objects have team1 and team2 attributes directly (for convenience)
             team1 = getattr(matchup, 'team1', None)
             team2 = getattr(matchup, 'team2', None)
             
-            # Helper to get team points from team_stats
-            def get_team_points(team):
-                if not team:
+            # Helper to extract weekly points from team in matchup.teams
+            def get_team_points_from_matchup_teams(team_obj):
+                """Extract weekly points from team object in matchup.teams structure."""
+                if not team_obj:
                     return 0.0
                 try:
-                    # Try to get from team_stats (if available in matchup)
-                    # For matchups, we may need to look at stats differently
-                    # For now, return 0.0 - matchup points may need different approach
+                    # Teams in matchup.teams have team_points with total field
+                    if hasattr(team_obj, 'team_points'):
+                        team_points = getattr(team_obj, 'team_points')
+                        if hasattr(team_points, 'total'):
+                            total = getattr(team_points, 'total')
+                            if total is not None:
+                                return float(total)
                     return 0.0
-                except:
+                except (ValueError, TypeError, AttributeError) as e:
+                    logger.debug(f"Error extracting points from team_points: {e}")
                     return 0.0
+            
+            # Extract weekly points from matchup.teams structure
+            # This is where the weekly points are stored according to Yahoo API
+            team1_points = 0.0
+            team2_points = 0.0
+            team1_key = None
+            team1_name = None
+            team2_key = None
+            team2_name = None
+            
+            try:
+                if hasattr(matchup, 'teams'):
+                    teams_obj = getattr(matchup, 'teams')
+                    if hasattr(teams_obj, 'team'):
+                        team_list = getattr(teams_obj, 'team')
+                        # team might be a single object or a list
+                        if not isinstance(team_list, list):
+                            team_list = [team_list]
+                        
+                        if len(team_list) >= 1:
+                            team1_obj = team_list[0]
+                            team1_points = get_team_points_from_matchup_teams(team1_obj)
+                            if hasattr(team1_obj, 'team_key'):
+                                team1_key = getattr(team1_obj, 'team_key')
+                            if hasattr(team1_obj, 'name'):
+                                team1_name = getattr(team1_obj, 'name')
+                        
+                        if len(team_list) >= 2:
+                            team2_obj = team_list[1]
+                            team2_points = get_team_points_from_matchup_teams(team2_obj)
+                            if hasattr(team2_obj, 'team_key'):
+                                team2_key = getattr(team2_obj, 'team_key')
+                            if hasattr(team2_obj, 'name'):
+                                team2_name = getattr(team2_obj, 'name')
+            except Exception as e:
+                logger.debug(f"Error accessing matchup.teams: {e}")
+                # Fallback to team1/team2 attributes if teams structure fails
+                pass
+            
+            # Fallback: Use team1/team2 attributes if we didn't get points from teams structure
+            if team1_points == 0.0 and team1:
+                team1_key = getattr(team1, 'team_key', team1_key)
+                team1_name = getattr(team1, 'name', team1_name)
+            if team2_points == 0.0 and team2:
+                team2_key = getattr(team2, 'team_key', team2_key)
+                team2_name = getattr(team2, 'name', team2_name)
             
             matchup_data = {
                 'matchup_id': getattr(matchup, 'matchup_id', ''),
-                'team1_key': getattr(team1, 'team_key', None) if team1 else None,
-                'team1_name': getattr(team1, 'name', None) if team1 else None,
-                'team1_points': get_team_points(team1),
-                'team2_key': getattr(team2, 'team_key', None) if team2 else None,
-                'team2_name': getattr(team2, 'name', None) if team2 else None,
-                'team2_points': get_team_points(team2),
+                'team1_key': team1_key,
+                'team1_name': team1_name,
+                'team1_points': team1_points,
+                'team2_key': team2_key,
+                'team2_name': team2_name,
+                'team2_points': team2_points,
                 'winner': getattr(matchup, 'winner_team_key', None) if hasattr(matchup, 'winner_team_key') else None,
             }
             return matchup_data
         except Exception as e:
-            print(f"Error fetching matchup data: {e}")
+            logger.warning(f"Error fetching matchup data: {e}")
             import traceback
             traceback.print_exc()
             return {'error': str(e)}
+    
+    def _fetch_weekly_rosters_from_matchup(self, matchup, year: int, week: int) -> List[Dict]:
+        """Fetch weekly rosters for teams in a matchup.
+        
+        Args:
+            matchup: Matchup object from Yahoo API
+            year: Season year
+            week: Week number
+            
+        Returns:
+            List of roster dictionaries with player info for the week
+        """
+        weekly_rosters = []
+        
+        try:
+            team1 = getattr(matchup, 'team1', None)
+            team2 = getattr(matchup, 'team2', None)
+            
+            for team in [team1, team2]:
+                if not team:
+                    continue
+                
+                try:
+                    # Get roster for this team (this should return the roster for the week of the matchup)
+                    roster = team.roster()
+                    team_key = getattr(team, 'team_key', '')
+                    team_name = getattr(team, 'name', '')
+                    
+                    if hasattr(roster, 'players'):
+                        players_list = roster.players
+                    else:
+                        continue
+                    
+                    for player in players_list:
+                        try:
+                            # Get player position and roster slot
+                            player_id = getattr(player, 'player_id', '')
+                            player_name = getattr(getattr(player, 'name', None), 'full', '') if hasattr(player, 'name') else ''
+                            position = getattr(player, 'primary_position', '')
+                            
+                            # Get selected position (roster slot)
+                            selected_pos = getattr(player, 'selected_position', None)
+                            if selected_pos:
+                                if isinstance(selected_pos, dict):
+                                    roster_slot = selected_pos.get('position', '')
+                                else:
+                                    roster_slot = getattr(selected_pos, 'position', '')
+                            else:
+                                roster_slot = ''
+                            
+                            # Determine if started (not BN/IR)
+                            started = roster_slot not in ['BN', 'IR', ''] if roster_slot else False
+                            
+                            # Try to get weekly points for this player
+                            weekly_points = 0.0
+                            try:
+                                # For weekly rosters, we need to get stats for the specific week
+                                # This may require calling player.get_stats() with week parameter
+                                # For now, we'll leave it as 0 and can enhance later
+                                # The roster structure may have weekly stats embedded
+                                pass
+                            except:
+                                pass
+                            
+                            weekly_rosters.append({
+                                'season_year': year,
+                                'week': week,
+                                'team_key': team_key,
+                                'team_name': team_name,
+                                'player_id': player_id,
+                                'player_name': player_name,
+                                'position': position,
+                                'roster_slot': roster_slot,
+                                'started': started,
+                                'points': weekly_points,  # Will need to populate from player stats
+                            })
+                        except Exception as player_error:
+                            logger.debug(f"Error processing player in weekly roster: {player_error}")
+                            continue
+                
+                except Exception as team_error:
+                    logger.debug(f"Error fetching weekly roster for team: {team_error}")
+                    continue
+        
+        except Exception as e:
+            logger.debug(f"Error fetching weekly rosters from matchup: {e}")
+        
+        return weekly_rosters
     
     def _serialize_settings(self, league) -> Dict:
         """Serialize league settings to dictionary."""

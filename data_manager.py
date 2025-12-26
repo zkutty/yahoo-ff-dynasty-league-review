@@ -94,3 +94,4 @@ class DataManager:
             f.write(content)
         print(f"Saved insight to {file_path}")
 
+

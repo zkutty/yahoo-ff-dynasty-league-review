@@ -165,3 +165,4 @@ def build_lifecycle_table(
     logger.info(f"Built lifecycle table for {len(df)} player-seasons")
     return df
 
+

@@ -88,3 +88,4 @@ class TradeAnalyzer:
             if not analysis_df.empty:
                 data_manager.save_cleaned_data(f'trade_{analysis_name}', analysis_df)
 
+

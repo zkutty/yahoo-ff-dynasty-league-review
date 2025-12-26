@@ -124,3 +124,4 @@ def normalize_prices(
     logger.info(f"Normalized prices using baseline season {baseline_season}")
     return df
 
+

@@ -144,3 +144,4 @@ Once you have successfully fetched your data:
 3. Customize the analysis in `data_cleaner.py` if needed
 4. Adjust AI prompts in `openai_insights.py` to change the narrative style
 
+
