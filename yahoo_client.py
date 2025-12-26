@@ -242,17 +242,29 @@ class YahooFantasyClient:
             # Get teams (call as method)
             teams = league.teams()
             for team in teams:
-                team_data = self._fetch_team_data(team, year)
-                # Update team data with stats from standings
-                team_key = team_data.get('team_key', '')
-                if team_key in standings_lookup:
-                    stats = standings_lookup[team_key]
-                    team_data['wins'] = stats['wins']
-                    team_data['losses'] = stats['losses']
-                    team_data['ties'] = stats['ties']
-                    team_data['points_for'] = stats['points_for']
-                    team_data['points_against'] = stats['points_against']
-                season_data['teams'].append(team_data)
+                try:
+                    team_data = self._fetch_team_data(team, year)
+                    # Update team data with stats from standings
+                    team_key = team_data.get('team_key', '')
+                    if team_key in standings_lookup:
+                        stats = standings_lookup[team_key]
+                        team_data['wins'] = stats['wins']
+                        team_data['losses'] = stats['losses']
+                        team_data['ties'] = stats['ties']
+                        team_data['points_for'] = stats['points_for']
+                        team_data['points_against'] = stats['points_against']
+                    season_data['teams'].append(team_data)
+                except Exception as team_error:
+                    # Handle errors fetching individual team data (e.g., 500 errors on player stats)
+                    error_str = str(team_error)
+                    if '500' in error_str or 'Server Error' in error_str:
+                        logger.warning(f"Server error fetching team {getattr(team, 'name', 'unknown')} for {year}: {team_error}")
+                        # Continue with other teams
+                        continue
+                    else:
+                        # For other errors, log and continue
+                        logger.warning(f"Error fetching team {getattr(team, 'name', 'unknown')} for {year}: {team_error}")
+                        continue
             
             # Get matchups/weeks (call as method)
             weeks = league.weeks()
@@ -310,8 +322,14 @@ class YahooFantasyClient:
             error_str = str(e)
             import traceback
             
+            error_type = str(type(e).__name__)
+            
             # Check if this is an authentication error (401)
-            if '401' in error_str or 'Unauthorized' in error_str or 'HTTPError' in str(type(e).__name__):
+            is_401 = '401' in error_str or 'Unauthorized' in error_str
+            is_500 = '500' in error_str or 'Server Error' in error_str or 'INKApi Error' in error_str
+            is_http_error = 'HTTPError' in error_type
+            
+            if is_401:
                 logger.warning(f"Authentication error (401) fetching season {year}: {e}")
                 season_data['error'] = f"Authentication error: Token may have expired. {str(e)}"
                 
@@ -330,6 +348,14 @@ class YahooFantasyClient:
                         season_data['error'] = f"Authentication failed after retry: {str(retry_error)}"
                 else:
                     logger.error(f"Authentication error occurred, but retry disabled or already attempted")
+            elif is_500:
+                # Yahoo server errors (500) - often happen for historical data
+                # Log warning but don't fail completely - some data may have been fetched
+                logger.warning(f"Yahoo server error (500) while fetching season {year}: {e}")
+                logger.warning(f"This is often caused by incomplete player stats for historical seasons.")
+                logger.warning(f"Continuing with partial data...")
+                season_data['error'] = f"Partial data: Yahoo server error for some players. {str(e)[:200]}"
+                # Don't raise - continue with whatever data we got
             else:
                 # Other errors - log and continue
                 logger.error(f"Error fetching season {year}: {e}")
@@ -344,6 +370,10 @@ class YahooFantasyClient:
             roster = team.roster()
             players = []
             # Roster.players is a list
+            # Track if we hit too many server errors to avoid spamming
+            server_error_count = 0
+            max_server_errors = 5  # Log first 5, then stop logging to avoid spam
+            
             for player in roster.players:
                 # Try to get player points for the season
                 fantasy_points = None
@@ -358,13 +388,32 @@ class YahooFantasyClient:
                         elif isinstance(points_obj, dict):
                             fantasy_points = float(points_obj.get('total', points_obj.get('points', 0)))
                     except Exception as e:
-                        # Handle 401 Unauthorized - token might be expired
+                        # Handle various API errors gracefully
                         error_str = str(e)
-                        if '401' in error_str or 'Unauthorized' in error_str:
-                            logger.debug(f"Unauthorized error fetching points for player {getattr(player, 'player_id', 'unknown')}: {e}")
-                            # Don't raise - just skip this player's points
-                            # The token issue should be handled at a higher level
-                        # Silently fail for other errors - points may not be available for all players
+                        error_type = str(type(e).__name__)
+                        
+                        # Check for HTTP errors
+                        is_401 = '401' in error_str or 'Unauthorized' in error_str
+                        is_500 = '500' in error_str or 'Server Error' in error_str or 'INKApi Error' in error_str
+                        is_http_error = 'HTTPError' in error_type or 'HTTP' in error_str
+                        
+                        if is_401:
+                            # Raise 401 errors - they should be handled at season level for token refresh
+                            raise
+                        elif is_500:
+                            server_error_count += 1
+                            if server_error_count <= max_server_errors:
+                                logger.debug(f"Server error (500) fetching points for player {getattr(player, 'player_id', 'unknown')}: {e}")
+                            elif server_error_count == max_server_errors + 1:
+                                logger.debug(f"Additional server errors occurred but not logging to avoid spam...")
+                            # Yahoo server error - likely incomplete data for this player
+                            # Just skip this player's points and continue
+                        elif is_http_error:
+                            logger.debug(f"HTTP error fetching points for player {getattr(player, 'player_id', 'unknown')}: {e}")
+                            # Other HTTP errors (404, 403, etc.) - skip this player
+                        else:
+                            logger.debug(f"Error fetching points for player {getattr(player, 'player_id', 'unknown')}: {e}")
+                        # Silently fail - points may not be available for all players, especially in historical seasons
                         pass
                 
                 player_data = {
