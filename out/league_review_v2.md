@@ -1,6 +1,6 @@
 # Fantasy Football League Review: Outcome-Linked Analysis
 
-**Analysis Period:** 2018-2024
+**Analysis Period:** 2024-2024
 
 ## Assumptions & Methodology
 
@@ -30,14 +30,14 @@
 
 | Position | Avg $/VAR | Avg VAR/$ | Avg VAR | Avg Price | Players |
 |----------|-----------|-----------|---------|-----------|---------|
-| QB | $inf | -2.703 | 10.1 | $4137.7 | 127 |
-| RB | $inf | -0.574 | 10.4 | $3600.1 | 284 |
-| TE | $inf | 0.381 | 22.4 | $1897.8 | 103 |
-| WR | $inf | -2.159 | -3.6 | $3132.6 | 323 |
+| QB | $inf | -0.208 | -24.7 | $2182.9 | 30 |
+| RB | $inf | -0.184 | -3.7 | $1397.8 | 52 |
+| TE | $inf | 0.044 | 27.4 | $908.7 | 17 |
+| WR | $inf | -0.072 | -6.0 | $1388.8 | 55 |
 
-**Best Value Position:** TE ($0.381 VAR per dollar)
+**Best Value Position:** TE ($0.044 VAR per dollar)
 
-**Worst Value Position:** QB ($-2.703 VAR per dollar)
+**Worst Value Position:** QB ($-0.208 VAR per dollar)
 
 ## B. Manager Efficiency Leaderboard
 
@@ -45,31 +45,31 @@
 
 | Rank | Manager | VAR/$ | Total VAR | Total Spend | Wins | Championships | Seasons |
 |------|---------|-------|-----------|-------------|------|---------------|---------|
-| 1 | Zach | 1.569 | 1826.5 | $1164 | 42 | 1 | 6 |
-| 2 | Ryan | 1.279 | 1525.1 | $1192 | 40 | 1 | 6 |
-| 3 | Kyle | 0.758 | 896.4 | $1182 | 45 | 0 | 6 |
-| 4 | Shaunt | 0.468 | 560.9 | $1198 | 34 | 0 | 6 |
-| 5 | --hidden-- | 0.302 | 299.7 | $993 | 36 | 0 | 5 |
-| 6 | James | 0.254 | 304.5 | $1200 | 42 | 1 | 6 |
-| 7 | Adam | 0.249 | 298.8 | $1200 | 39 | 0 | 6 |
-| 8 | Connor | 0.178 | 212.8 | $1195 | 49 | 0 | 6 |
-| 9 | Ashkaun Razmara | 0.176 | 205.2 | $1169 | 36 | 0 | 6 |
-| 10 | Ohad | 0.151 | 149.7 | $989 | 42 | 2 | 5 |
+| 1 | djharry01 | 1.680 | 335.9 | $200 | 10 | 0 | 1 |
+| 2 | Zach | 1.614 | 322.7 | $200 | 7 | 0 | 1 |
+| 3 | James | 1.134 | 226.9 | $200 | 6 | 0 | 1 |
+| 4 | Connor | 0.902 | 180.4 | $200 | 10 | 0 | 1 |
+| 5 | Adam | 0.399 | 79.8 | $200 | 7 | 0 | 1 |
+| 6 | Kyle | 0.098 | 19.3 | $197 | 10 | 0 | 1 |
+| 7 | Bhavik | -0.171 | -34.0 | $199 | 6 | 1 | 1 |
+| 8 | Ryan | -0.459 | -90.1 | $196 | 7 | 0 | 1 |
+| 9 | Andrew | -0.498 | -98.6 | $198 | 6 | 0 | 1 |
+| 10 | Michael J. | -1.259 | -232.9 | $185 | 9 | 0 | 1 |
 
 ### Manager VAR Sources (Average % by Source)
 
 | Manager | Draft % | Keeper % | Waiver % | Trade % |
 |---------|---------|----------|----------|---------|
-| --hidden-- | 0.0% | 60.0% | 0.0% | 0.0% |
-| Adam | 0.0% | 50.0% | 0.0% | 0.0% |
-| Andrew | 0.0% | 33.3% | 0.0% | 0.0% |
-| Ashkaun Razmara | 0.0% | 50.0% | 0.0% | 0.0% |
-| Bhavik | 0.0% | 50.0% | 0.0% | 0.0% |
-| Connor | 0.0% | 50.0% | 0.0% | 0.0% |
-| James | 0.0% | 50.0% | 0.0% | 0.0% |
-| Kyle | 0.0% | 83.3% | 0.0% | 0.0% |
-| Matt | 0.0% | 0.0% | 0.0% | 0.0% |
-| Michael J. | 0.0% | 33.3% | 0.0% | 0.0% |
+| Adam | 0.0% | 100.0% | 0.0% | 0.0% |
+| Andrew | 0.0% | 0.0% | 0.0% | 0.0% |
+| Ashkaun Razmara | 0.0% | 0.0% | 0.0% | 0.0% |
+| Bhavik | 0.0% | 0.0% | 0.0% | 0.0% |
+| Connor | 0.0% | 100.0% | 0.0% | 0.0% |
+| James | 0.0% | 100.0% | 0.0% | 0.0% |
+| Kyle | 0.0% | 100.0% | 0.0% | 0.0% |
+| Michael J. | 0.0% | 0.0% | 0.0% | 0.0% |
+| Mitchell | 0.0% | 0.0% | 0.0% | 0.0% |
+| Ohad | 0.0% | 0.0% | 0.0% | 0.0% |
 
 ## C. Draft Skill Analysis
 
@@ -77,24 +77,24 @@
 
 | Manager | Hit Rate | Bust Rate | Top 3 Pick VAR | Avg VAR |
 |---------|----------|-----------|----------------|---------|
-| --hidden-- | 100.0% | 49.1% | 229.3 | 5.7 |
-| Adam | 100.0% | 47.3% | 106.4 | 5.4 |
-| Andrew | 100.0% | 47.5% | 101.5 | -0.2 |
-| Ashkaun Razmara | 100.0% | 45.6% | 126.1 | 3.6 |
-| Bhavik | 100.0% | 49.1% | 26.5 | -4.5 |
-| Connor | 100.0% | 45.5% | 116.6 | 3.2 |
-| James | 100.0% | 48.3% | 211.0 | 5.1 |
-| Kyle | 100.0% | 36.7% | 159.9 | 14.9 |
-| Matt | 100.0% | 51.6% | 106.7 | -7.9 |
-| Michael J. | 100.0% | 60.0% | 120.5 | -6.5 |
+| Adam | 100.0% | 41.7% | 46.8 | 6.7 |
+| Andrew | 100.0% | 40.0% | 8.8 | -9.9 |
+| Ashkaun Razmara | 100.0% | 61.5% | 43.8 | -21.9 |
+| Bhavik | 100.0% | 45.5% | 308.1 | -3.1 |
+| Connor | 100.0% | 30.0% | 196.8 | 18.0 |
+| James | 100.0% | 45.5% | 165.6 | 20.6 |
+| Kyle | 100.0% | 46.2% | 204.3 | 1.5 |
+| Michael J. | 100.0% | 45.5% | -75.2 | -21.2 |
+| Mitchell | 100.0% | 63.6% | 18.9 | -32.3 |
+| Ohad | 100.0% | 63.6% | 187.2 | -39.9 |
 
 ### Hit Rates by Draft Tier (League-Wide)
 
 | Tier | Hit Rate | Bust Rate | Avg VAR | Players |
 |------|----------|-----------|---------|---------|
-| Tier 1 | 100.0% | 41.5% | 9.0 | 386 |
-| Tier 2 | 100.0% | 48.2% | 6.2 | 342 |
-| Tier 3 | 100.0% | 53.2% | -1.9 | 109 |
+| Tier 1 | 100.0% | 46.2% | -0.9 | 65 |
+| Tier 2 | 100.0% | 48.5% | -5.3 | 66 |
+| Tier 3 | 100.0% | 52.2% | -16.8 | 23 |
 
 ## D. Keeper Skill
 
@@ -102,10 +102,10 @@
 
 | Position | Avg Surplus | Avg VAR | Surplus-VAR Correlation |
 |----------|-------------|---------|------------------------|
-| QB | $4122.16 | 10.1 | 0.158 |
-| RB | $3580.23 | 10.4 | 0.158 |
-| TE | $1886.92 | 22.4 | 0.158 |
-| WR | $3115.90 | -3.6 | 0.158 |
+| QB | $2159.82 | -24.7 | 0.424 |
+| RB | $1383.10 | -3.7 | 0.424 |
+| TE | $899.08 | 27.4 | 0.424 |
+| WR | $1374.15 | -6.0 | 0.424 |
 
 ## F. Champion Blueprint
 
@@ -113,33 +113,36 @@
 
 **Top 3 Differentiators:**
 
-1. **pct_VAR_from_keeper**: Champions +83.3% different (effect size: 1.28)
-2. **total_VAR**: Champions +426.4% different (effect size: 1.08)
-3. **keeper_VAR**: Champions +426.4% different (effect size: 1.08)
+1. **total_VAR**: Champions -42.1% different (effect size: 0.00)
+2. **VAR_per_dollar**: Champions -43.4% different (effect size: 0.00)
+3. **pct_VAR_from_draft**: Champions +0.0% different (effect size: 0.00)
+4. **pct_VAR_from_keeper**: Champions -100.0% different (effect size: 0.00)
+5. **pct_VAR_from_waiver**: Champions +0.0% different (effect size: 0.00)
+6. **pct_VAR_from_trade**: Champions +0.0% different (effect size: 0.00)
+7. **draft_VAR**: Champions +0.0% different (effect size: 0.00)
+8. **keeper_VAR**: Champions -42.1% different (effect size: 0.00)
+9. **waiver_VAR**: Champions +0.0% different (effect size: 0.00)
+10. **trade_VAR**: Champions +0.0% different (effect size: 0.00)
+11. **keeper_spending_pct**: Champions +0.0% different (effect size: 0.00)
 
 ### Champion Seasons
 
 | Season | Manager | VAR/$ | Total VAR | Draft % | Keeper % | Waiver % | Trade % |
 |--------|---------|-------|-----------|---------|----------|----------|---------|
-| 2018 | Bhavik | 1.670 | 329.0 | 0.0% | 100.0% | 0.0% | 0.0% |
-| 2019 | Ryan | 1.122 | 221.0 | 0.0% | 100.0% | 0.0% | 0.0% |
-| 2020 | Ohad | 1.168 | 228.9 | 0.0% | 100.0% | 0.0% | 0.0% |
-| 2021 | Zach | 1.372 | 274.4 | 0.0% | 100.0% | 0.0% | 0.0% |
-| 2022 | James | 2.708 | 541.6 | 0.0% | 100.0% | 0.0% | 0.0% |
-| 2023 | Ohad | 0.089 | 17.8 | 0.0% | 100.0% | 0.0% | 0.0% |
+| 2024 | Bhavik | -0.171 | -34.0 | 0.0% | 0.0% | 0.0% | 0.0% |
 
 ### Champions vs Non-Champions Comparison
 
 | Metric | Champion Mean | Non-Champion Mean | Difference | Effect Size |
 |--------|---------------|-------------------|------------|-------------|
-| pct_VAR_from_keeper | 100.00 | 54.55 | +45.45 | 1.28 |
-| total_VAR | 268.77 | 51.06 | +217.72 | 1.08 |
-| keeper_VAR | 268.77 | 51.06 | +217.72 | 1.08 |
-| VAR_per_dollar | 1.35 | 0.26 | +1.09 | 1.08 |
+| total_VAR | -34.04 | -58.76 | +24.72 | 0.00 |
+| VAR_per_dollar | -0.17 | -0.30 | +0.13 | 0.00 |
 | pct_VAR_from_draft | 0.00 | 0.00 | +0.00 | 0.00 |
+| pct_VAR_from_keeper | 0.00 | 46.15 | -46.15 | 0.00 |
 | pct_VAR_from_waiver | 0.00 | 0.00 | +0.00 | 0.00 |
 | pct_VAR_from_trade | 0.00 | 0.00 | +0.00 | 0.00 |
 | draft_VAR | 0.00 | 0.00 | +0.00 | 0.00 |
+| keeper_VAR | -34.04 | -58.76 | +24.72 | 0.00 |
 | waiver_VAR | 0.00 | 0.00 | +0.00 | 0.00 |
 | trade_VAR | 0.00 | 0.00 | +0.00 | 0.00 |
 
@@ -157,59 +160,48 @@
 
 ### Most Consistent Managers
 
-**Most Consistent (Wins):** djharry01 (Score: 100.0)
-- Median Wins: 9.0
+**Most Consistent (Wins):** Connor (Score: 100.0)
+- Median Wins: 10.0
 - Std Wins: nan
 
-**Most Volatile (Wins):** Bhavik (Score: 0.0)
-- Median Wins: 5.5
-- Std Wins: 3.27
+**Most Volatile (Wins):** Ashkaun Razmara (Score: 0.0)
+- Median Wins: 2.0
+- Std Wins: nan
 
 ### Champions vs Non-Champions: Consistency
 
-- **Champions Avg Std Wins:** 2.48
-- **Non-Champions Avg Std Wins:** 1.99
+- **Champions Avg Std Wins:** nan
+- **Non-Champions Avg Std Wins:** nan
 - **Insight:** Champions are more volatile (higher std)
 
 ### Consistency Score Rankings (Top 5)
 
 | Rank | Manager | Consistency Score (Wins) | Median Wins | Std Wins |
 |------|---------|-------------------------|-------------|----------|
-| 1 | djharry01 | 100.0 | 9.0 | nan |
-| 2 | Connor | 31.1 | 8.0 | 1.17 |
-| 3 | --hidden-- | 26.6 | 7.0 | 1.10 |
-| 4 | Zach | 26.2 | 7.5 | 1.26 |
-| 5 | James | 18.2 | 7.5 | 1.79 |
+| 1 | Connor | 100.0 | 10.0 | nan |
+| 2 | djharry01 | 100.0 | 10.0 | nan |
+| 3 | Kyle | 100.0 | 10.0 | nan |
+| 4 | Michael J. | 87.5 | 9.0 | nan |
+| 5 | Zach | 62.5 | 7.0 | nan |
 
 ### Manager Archetypes
 
-- **UNCLASSIFIED**: 6 managers
-- **CONSISTENT_CONTENDER**: 4 managers
-- **BOOM_BUST**: 3 managers
-- **STEADY_BUT_UNLUCKY**: 2 managers
+- **STEADY_BUT_UNLUCKY**: 8 managers
+- **LOW_SAMPLE**: 5 managers
 - **LOTTERY**: 1 managers
 
-**CONSISTENT_CONTENDER Examples:**
-- Connor: 8.0 median wins, 1.17 std, 0 championships
-- --hidden--: 7.0 median wins, 1.10 std, 0 championships
-- James: 7.5 median wins, 1.79 std, 1 championships
-
-**BOOM_BUST Examples:**
-- Ohad: 8.0 median wins, 3.36 std, 2 championships
-- Ryan: 6.5 median wins, 2.73 std, 1 championships
-- Adam: 6.0 median wins, 3.33 std, 0 championships
-
 **LOTTERY Examples:**
-- Bhavik: 5.5 median wins, 3.27 std, 1 championships
+- Bhavik: 6.0 median wins, nan std, 1 championships
 
 **STEADY_BUT_UNLUCKY Examples:**
-- Kyle: 7.0 median wins, 2.51 std, 0 championships
-- djharry01: 9.0 median wins, nan std, 0 championships
+- Connor: 10.0 median wins, nan std, 0 championships
+- Ryan: 7.0 median wins, nan std, 0 championships
+- Zach: 7.0 median wins, nan std, 0 championships
 
 ### Is High Variance Rewarded?
 
-- **Correlation (Std Wins vs Championships):** 0.409
-- **Insight:** Higher variance is positively correlated with championships
+- **Correlation (Std Wins vs Championships):** nan
+- **Insight:** No strong relationship between variance and championships
 
 ## H. Schedule Luck & Points Against
 
@@ -218,23 +210,11 @@
 *Weekly lineup analysis requires weekly roster snapshots which are not currently available in the data.*
 *To enable this analysis, weekly roster data must be fetched from the Yahoo API or derived from transactions.*
 
-### Value-to-Wins Conversion
-
-Managers with strongest correlation between VAR and wins:
-
-| Manager | VAR→Wins Corr | Draft VAR→Wins | Keeper VAR→Wins |
-|---------|---------------|----------------|-----------------|
-| Adam | 0.896 | N/A | 0.896 |
-| Ryan | 0.873 | N/A | 0.873 |
-| Ohad | 0.718 | N/A | 0.718 |
-| Bhavik | 0.675 | N/A | 0.675 |
-| Andrew | 0.659 | N/A | 0.659 |
-
 ---
 
 ## Key Takeaways
 
-- **Most Efficient Manager:** Zach ($1.537 VAR per dollar)
-- **Biggest Champion Differentiator:** pct_VAR_from_keeper
-- **Most Consistent Manager:** djharry01
-- **Most Championships:** Ohad (2)
+- **Most Efficient Manager:** djharry01 ($1.680 VAR per dollar)
+- **Biggest Champion Differentiator:** total_VAR
+- **Most Consistent Manager:** Connor
+- **Most Championships:** Bhavik (1)
