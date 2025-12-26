@@ -8,12 +8,16 @@ from trade_analyzer import TradeAnalyzer
 import config
 
 
-def fetch_league_data(refresh: bool = False, generate_ai: bool = False, start_year: int = None, end_year: int = None):
+def fetch_league_data(refresh: bool = False, generate_ai: bool = False, start_year: int = None,
+                      end_year: int = None, fetch_weekly_points: bool = False):
     """Fetch league data from Yahoo Fantasy API.
-    
+
     Args:
         refresh: If True, fetch fresh data even if cached data exists
         generate_ai: If True, generate AI-powered insights (requires OpenAI API key)
+        start_year: First year to fetch (default: config.LEAGUE_START_YEAR)
+        end_year: Last year to fetch (default: config.CURRENT_YEAR)
+        fetch_weekly_points: If True, fetch weekly player points using cumulative difference method
     """
     print("=" * 60)
     print("Yahoo Fantasy Football League Review App")
@@ -51,7 +55,10 @@ def fetch_league_data(refresh: bool = False, generate_ai: bool = False, start_ye
             for year in range(start, end + 1):
                 print(f"\nFetching {year} season data...")
                 try:
-                    season_data = client.fetch_season_data(year)
+                    season_data = client.fetch_season_data(
+                        year,
+                        fetch_weekly_points=fetch_weekly_points
+                    )
                     all_data[year] = season_data
                     data_manager.save_season_data(year, season_data)
                 except (ValueError, Exception) as e:
@@ -193,15 +200,21 @@ def main():
         default=None,
         help=f'Last year to fetch/analyze (default: {config.CURRENT_YEAR})'
     )
-    
+    parser.add_argument(
+        '--weekly-points',
+        action='store_true',
+        help='Fetch weekly player points using cumulative difference method (slower but provides weekly granularity)'
+    )
+
     args = parser.parse_args()
-    
+
     # Run the main function
     fetch_league_data(
-        refresh=args.refresh, 
+        refresh=args.refresh,
         generate_ai=args.generate_ai,
         start_year=args.start_year,
-        end_year=args.end_year
+        end_year=args.end_year,
+        fetch_weekly_points=args.weekly_points
     )
 
 

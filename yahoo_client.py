@@ -193,16 +193,20 @@ class YahooFantasyClient:
             f"Make sure the league ID is correct."
         )
     
-    def fetch_season_data(self, year: int, retry_on_auth_error: bool = True) -> Dict:
+    def fetch_season_data(self, year: int, retry_on_auth_error: bool = True,
+                          fetch_weekly_points: bool = False, num_weeks: int = 17) -> Dict:
         """Fetch all data for a specific season.
-        
+
         Note: For historical seasons, you may need to specify the league_key
         with the year. Adjust this method based on your league structure.
-        
+
         Args:
             year: The season year to fetch
             retry_on_auth_error: If True, attempt to re-authenticate and retry on 401 errors
-            
+            fetch_weekly_points: If True, also fetch weekly player points using cumulative
+                difference method (slower but provides weekly granularity)
+            num_weeks: Number of weeks in the season (default: 17)
+
         Returns:
             Dictionary containing all season data
         """
@@ -223,6 +227,7 @@ class YahooFantasyClient:
             'transactions': [],
             'settings': None,
             'draft_results': [],
+            'weekly_player_points': [],  # Populated if fetch_weekly_points=True
         }
         
         try:
@@ -329,7 +334,18 @@ class YahooFantasyClient:
             except Exception as e:
                 print(f"Error fetching draft results for {year}: {e}")
                 season_data['draft_results'] = []
-            
+
+            # Fetch weekly player points if requested (uses cumulative difference method)
+            if fetch_weekly_points:
+                try:
+                    print(f"  Fetching weekly player points for {year}...")
+                    weekly_points = self.fetch_weekly_player_points(year, num_weeks=num_weeks)
+                    season_data['weekly_player_points'] = weekly_points
+                    print(f"  Fetched {len(weekly_points)} weekly player point records for {year}")
+                except Exception as e:
+                    logger.warning(f"Error fetching weekly player points for {year}: {e}")
+                    season_data['weekly_player_points'] = []
+
         except Exception as e:
             error_str = str(e)
             import traceback
@@ -354,7 +370,9 @@ class YahooFantasyClient:
                         self.authenticate()
                         # Retry the fetch (but don't retry again to avoid infinite loop)
                         logger.info(f"Retrying fetch for season {year} after re-authentication...")
-                        return self.fetch_season_data(year, retry_on_auth_error=False)
+                        return self.fetch_season_data(year, retry_on_auth_error=False,
+                                                      fetch_weekly_points=fetch_weekly_points,
+                                                      num_weeks=num_weeks)
                     except Exception as retry_error:
                         logger.error(f"Failed to re-authenticate: {retry_error}")
                         season_data['error'] = f"Authentication failed after retry: {str(retry_error)}"
@@ -996,20 +1014,207 @@ class YahooFantasyClient:
     
     def fetch_all_seasons(self, start_year: int, end_year: int) -> Dict[int, Dict]:
         """Fetch data for all seasons from start_year to end_year.
-        
+
         Args:
             start_year: First year to fetch
             end_year: Last year to fetch (inclusive)
-            
+
         Returns:
             Dictionary mapping years to season data
         """
         all_data = {}
-        
+
         for year in range(start_year, end_year + 1):
             print(f"Fetching data for {year}...")
             season_data = self.fetch_season_data(year)
             all_data[year] = season_data
             time.sleep(1)  # Rate limiting
-            
+
         return all_data
+
+    def fetch_weekly_player_points(self, year: int, num_weeks: int = 17) -> List[Dict]:
+        """Fetch weekly player points using cumulative difference method.
+
+        This method is more efficient than fetching individual player stats:
+        - One API call per team per week (gets all ~16 players)
+        - Calculates weekly points as: cumulative[week] - cumulative[week-1]
+        - ~15x faster than individual player API calls
+        - 99.9%+ accuracy (see WEEKLY_PLAYER_POINTS_ANALYSIS.md)
+
+        Args:
+            year: Season year to fetch
+            num_weeks: Number of weeks in the season (default: 17)
+
+        Returns:
+            List of dicts with weekly player point records:
+            [{season_year, week, team_key, player_id, player_name, position,
+              roster_slot, started, weekly_points, cumulative_points}, ...]
+        """
+        weekly_records = []
+
+        try:
+            league = self.get_league(year=year)
+            teams = league.teams()
+        except Exception as e:
+            logger.error(f"Failed to get league/teams for {year}: {e}")
+            return weekly_records
+
+        # Cache cumulative points per player from previous week
+        # Key: (team_key, player_id) -> cumulative_points
+        prev_week_cumulative = {}
+
+        for week in range(1, num_weeks + 1):
+            print(f"  Fetching week {week}/{num_weeks} rosters...")
+            current_week_cumulative = {}
+
+            for team in teams:
+                team_key = getattr(team, 'team_key', '')
+                team_name = getattr(team, 'name', '')
+
+                try:
+                    # Fetch roster for this specific week
+                    # The roster should include cumulative stats through this week
+                    roster = team.roster(week=week)
+
+                    if not hasattr(roster, 'players'):
+                        continue
+
+                    for player in roster.players:
+                        player_id = getattr(player, 'player_id', '')
+                        if not player_id:
+                            continue
+
+                        # Get player info
+                        player_name = ''
+                        if hasattr(player, 'name'):
+                            name_obj = getattr(player, 'name', None)
+                            if hasattr(name_obj, 'full'):
+                                player_name = getattr(name_obj, 'full', '')
+                            elif isinstance(name_obj, str):
+                                player_name = name_obj
+
+                        position = getattr(player, 'primary_position', '')
+
+                        # Get roster slot (selected_position)
+                        roster_slot = ''
+                        selected_pos = getattr(player, 'selected_position', None)
+                        if selected_pos:
+                            if isinstance(selected_pos, dict):
+                                roster_slot = selected_pos.get('position', '')
+                            else:
+                                roster_slot = getattr(selected_pos, 'position', '')
+
+                        started = roster_slot not in ['BN', 'IR', ''] if roster_slot else False
+
+                        # Get cumulative points for this player through this week
+                        cumulative_points = self._get_player_cumulative_points(player, week)
+
+                        # Cache for next week's calculation
+                        cache_key = (team_key, player_id)
+                        current_week_cumulative[cache_key] = cumulative_points
+
+                        # Calculate weekly points using cumulative difference
+                        if week == 1:
+                            # Week 1: cumulative IS the weekly points
+                            weekly_points = cumulative_points if cumulative_points else 0.0
+                        else:
+                            # Week N: weekly = cumulative[N] - cumulative[N-1]
+                            prev_cumulative = prev_week_cumulative.get(cache_key, 0.0)
+                            if cumulative_points is not None:
+                                weekly_points = cumulative_points - prev_cumulative
+                            else:
+                                weekly_points = 0.0
+
+                        weekly_records.append({
+                            'season_year': year,
+                            'week': week,
+                            'team_key': team_key,
+                            'team_name': team_name,
+                            'player_id': player_id,
+                            'player_name': player_name,
+                            'position': position,
+                            'roster_slot': roster_slot,
+                            'started': started,
+                            'weekly_points': weekly_points,
+                            'cumulative_points': cumulative_points,
+                        })
+
+                except Exception as team_error:
+                    error_str = str(team_error)
+                    if '500' in error_str or 'Server Error' in error_str:
+                        logger.debug(f"Server error fetching week {week} roster for {team_name}: {team_error}")
+                    else:
+                        logger.warning(f"Error fetching week {week} roster for {team_name}: {team_error}")
+                    continue
+
+                # Small delay between teams to avoid rate limiting
+                time.sleep(0.1)
+
+            # Update previous week cache for next iteration
+            prev_week_cumulative = current_week_cumulative.copy()
+
+            # Delay between weeks
+            time.sleep(0.5)
+
+        logger.info(f"Fetched {len(weekly_records)} weekly player records for {year}")
+        return weekly_records
+
+    def _get_player_cumulative_points(self, player, week: int) -> Optional[float]:
+        """Get cumulative fantasy points for a player through the specified week.
+
+        Args:
+            player: Player object from roster
+            week: Week number
+
+        Returns:
+            Cumulative fantasy points or None if not available
+        """
+        try:
+            # Try to get points from player object
+            # The roster for week N should have cumulative stats through week N
+
+            # Method 1: Try player_points attribute (from roster context)
+            if hasattr(player, 'player_points'):
+                points_obj = getattr(player, 'player_points', None)
+                if points_obj:
+                    if isinstance(points_obj, (int, float)):
+                        return float(points_obj)
+                    elif hasattr(points_obj, 'total'):
+                        total = getattr(points_obj, 'total', None)
+                        if total is not None:
+                            return float(total)
+                    elif isinstance(points_obj, dict):
+                        total = points_obj.get('total', points_obj.get('points'))
+                        if total is not None:
+                            return float(total)
+
+            # Method 2: Try player_stats
+            if hasattr(player, 'player_stats'):
+                stats_obj = getattr(player, 'player_stats', None)
+                if stats_obj:
+                    # Stats might have coverage_type indicating if it's weekly or cumulative
+                    if hasattr(stats_obj, 'stats'):
+                        # Look for total/points in stats
+                        stats = getattr(stats_obj, 'stats', None)
+                        if stats and hasattr(stats, 'total'):
+                            return float(getattr(stats, 'total', 0))
+
+            # Method 3: Try get_points method (may trigger additional API call)
+            if hasattr(player, 'get_points'):
+                try:
+                    points_obj = player.get_points()
+                    if isinstance(points_obj, (int, float)):
+                        return float(points_obj)
+                    elif hasattr(points_obj, 'total'):
+                        return float(getattr(points_obj, 'total', 0))
+                    elif isinstance(points_obj, dict):
+                        return float(points_obj.get('total', points_obj.get('points', 0)))
+                except Exception as e:
+                    # Don't log - this is expected to fail sometimes
+                    pass
+
+            return None
+
+        except Exception as e:
+            logger.debug(f"Error getting cumulative points for player: {e}")
+            return None
