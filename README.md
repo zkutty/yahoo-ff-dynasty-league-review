@@ -162,6 +162,14 @@ In `openai_insights.py`, you can change the model:
 - `gpt-3.5-turbo` - Faster, lower cost
 - `gpt-4-turbo` - Balanced option
 
+## Documentation
+
+- **[CLAUDE.md](CLAUDE.md)** - Project guidance for Claude Code
+- **[DATA_STRUCTURE.md](DATA_STRUCTURE.md)** - Complete data schema documentation
+- **[OAUTH_SETUP.md](OAUTH_SETUP.md)** - Detailed OAuth setup guide
+- **[setup_guide.md](setup_guide.md)** - Comprehensive setup instructions
+- **[docs/WEEKLY_DATA_GUIDE.md](docs/WEEKLY_DATA_GUIDE.md)** - Weekly data extraction guide and recommendations
+
 ## Troubleshooting
 
 ### Authentication Issues

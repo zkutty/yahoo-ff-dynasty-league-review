@@ -48,14 +48,15 @@ python main.py --refresh --start-year 2020 --end-year 2024
 | `var.py` | Value Above Replacement calculation |
 | `tiers.py` | Draft tier assignment and hit rate analysis |
 | `keepers.py` | Keeper surplus analysis |
-| `lifecycle.py` | Player acquisition tracking (draft/waiver/trade) |
+| `lifecycle_extended.py` | Player acquisition tracking (draft/waiver/trade) |
 | `waivers.py` | Waiver pickup classification (LEAGUE_WINNER, SOLID_STARTER, etc.) |
 | `trades.py` | Trade impact analysis |
 | `strategies.py` | Manager archetype classification |
 | `consistency.py` | Manager outcome distributions and volatility |
 | `schedule_luck.py` | Expected wins vs actual, schedule difficulty |
 | `weekly_lineups.py` | Weekly lineup optimization analysis |
-| `plots.py` | Visualization generation |
+| `outputs.py` | CSV/Parquet saving and visualization generation |
+| `extract_player_stats.py` | Player stats extraction from Yahoo API |
 
 ### Key Data Flow
 
@@ -69,7 +70,15 @@ Yahoo API → data/league_data/season_YYYY.json
 ### Configuration
 
 - Environment: `.env` file with `YAHOO_CLIENT_ID`, `YAHOO_CLIENT_SECRET`, `YAHOO_LEAGUE_ID`, `OPENAI_API_KEY`
-- Settings: `config.py` - year ranges, directory paths
+- Settings: `config.py` - year ranges, directory paths, league constants (`NUM_TEAMS`, `AUCTION_BUDGET`)
+
+### Utility Scripts (`scripts/`)
+
+| Script | Purpose |
+|--------|---------|
+| `exchange_token.py` | OAuth token exchange utility |
+| `test_weekly_api_structure.py` | API structure exploration tool |
+| `fetch_weekly_data_example.py` | Example weekly data fetching |
 
 ## Key Concepts
 
