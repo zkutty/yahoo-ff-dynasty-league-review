@@ -1036,7 +1036,7 @@ class YahooFantasyClient:
         """Fetch weekly player points using cumulative difference method.
 
         This method is more efficient than fetching individual player stats:
-        - One API call per team per week (gets all ~16 players)
+        - Uses matchup API to get weekly rosters with cumulative stats
         - Calculates weekly points as: cumulative[week] - cumulative[week-1]
         - ~15x faster than individual player API calls
         - 99.9%+ accuracy (see WEEKLY_PLAYER_POINTS_ANALYSIS.md)
@@ -1054,101 +1054,122 @@ class YahooFantasyClient:
 
         try:
             league = self.get_league(year=year)
-            teams = league.teams()
         except Exception as e:
-            logger.error(f"Failed to get league/teams for {year}: {e}")
+            logger.error(f"Failed to get league for {year}: {e}")
             return weekly_records
 
         # Cache cumulative points per player from previous week
         # Key: (team_key, player_id) -> cumulative_points
         prev_week_cumulative = {}
 
-        for week in range(1, num_weeks + 1):
-            print(f"  Fetching week {week}/{num_weeks} rosters...")
+        # Fetch rosters via week/matchup API (team.roster() doesn't support week parameter)
+        for week_num in range(1, num_weeks + 1):
+            print(f"  Fetching week {week_num}/{num_weeks} rosters...")
             current_week_cumulative = {}
 
-            for team in teams:
-                team_key = getattr(team, 'team_key', '')
-                team_name = getattr(team, 'name', '')
+            try:
+                # Get matchups for this week - this gives us rosters in weekly context
+                weeks = league.weeks()
+                week_obj = next((w for w in weeks if w.week_num == week_num), None)
 
-                try:
-                    # Fetch roster for this specific week
-                    # The roster should include cumulative stats through this week
-                    roster = team.roster(week=week)
-
-                    if not hasattr(roster, 'players'):
-                        continue
-
-                    for player in roster.players:
-                        player_id = getattr(player, 'player_id', '')
-                        if not player_id:
-                            continue
-
-                        # Get player info
-                        player_name = ''
-                        if hasattr(player, 'name'):
-                            name_obj = getattr(player, 'name', None)
-                            if hasattr(name_obj, 'full'):
-                                player_name = getattr(name_obj, 'full', '')
-                            elif isinstance(name_obj, str):
-                                player_name = name_obj
-
-                        position = getattr(player, 'primary_position', '')
-
-                        # Get roster slot (selected_position)
-                        roster_slot = ''
-                        selected_pos = getattr(player, 'selected_position', None)
-                        if selected_pos:
-                            if isinstance(selected_pos, dict):
-                                roster_slot = selected_pos.get('position', '')
-                            else:
-                                roster_slot = getattr(selected_pos, 'position', '')
-
-                        started = roster_slot not in ['BN', 'IR', ''] if roster_slot else False
-
-                        # Get cumulative points for this player through this week
-                        cumulative_points = self._get_player_cumulative_points(player, week)
-
-                        # Cache for next week's calculation
-                        cache_key = (team_key, player_id)
-                        current_week_cumulative[cache_key] = cumulative_points
-
-                        # Calculate weekly points using cumulative difference
-                        if week == 1:
-                            # Week 1: cumulative IS the weekly points
-                            weekly_points = cumulative_points if cumulative_points else 0.0
-                        else:
-                            # Week N: weekly = cumulative[N] - cumulative[N-1]
-                            prev_cumulative = prev_week_cumulative.get(cache_key, 0.0)
-                            if cumulative_points is not None:
-                                weekly_points = cumulative_points - prev_cumulative
-                            else:
-                                weekly_points = 0.0
-
-                        weekly_records.append({
-                            'season_year': year,
-                            'week': week,
-                            'team_key': team_key,
-                            'team_name': team_name,
-                            'player_id': player_id,
-                            'player_name': player_name,
-                            'position': position,
-                            'roster_slot': roster_slot,
-                            'started': started,
-                            'weekly_points': weekly_points,
-                            'cumulative_points': cumulative_points,
-                        })
-
-                except Exception as team_error:
-                    error_str = str(team_error)
-                    if '500' in error_str or 'Server Error' in error_str:
-                        logger.debug(f"Server error fetching week {week} roster for {team_name}: {team_error}")
-                    else:
-                        logger.warning(f"Error fetching week {week} roster for {team_name}: {team_error}")
+                if not week_obj:
+                    logger.warning(f"Could not find week {week_num} object")
                     continue
 
-                # Small delay between teams to avoid rate limiting
+                # matchups might be an attribute or a method
+                matchups = week_obj.matchups if hasattr(week_obj, 'matchups') and not callable(week_obj.matchups) else week_obj.matchups()
+
+                # Process each matchup to get team rosters
+                for matchup in matchups:
+                    # Each matchup has two teams
+                    for team in [getattr(matchup, 'team1', None), getattr(matchup, 'team2', None)]:
+                        if not team:
+                            continue
+
+                        team_key = getattr(team, 'team_key', '')
+                        team_name = getattr(team, 'name', '')
+
+                        try:
+                            # Get roster from team in matchup context (includes weekly cumulative stats)
+                            roster = team.roster()
+
+                            if not hasattr(roster, 'players'):
+                                continue
+
+                            for player in roster.players:
+                                player_id = getattr(player, 'player_id', '')
+                                if not player_id:
+                                    continue
+
+                                # Get player info
+                                player_name = ''
+                                if hasattr(player, 'name'):
+                                    name_obj = getattr(player, 'name', None)
+                                    if hasattr(name_obj, 'full'):
+                                        player_name = getattr(name_obj, 'full', '')
+                                    elif isinstance(name_obj, str):
+                                        player_name = name_obj
+
+                                position = getattr(player, 'primary_position', '')
+
+                                # Get roster slot (selected_position)
+                                roster_slot = ''
+                                selected_pos = getattr(player, 'selected_position', None)
+                                if selected_pos:
+                                    if isinstance(selected_pos, dict):
+                                        roster_slot = selected_pos.get('position', '')
+                                    else:
+                                        roster_slot = getattr(selected_pos, 'position', '')
+
+                                started = roster_slot not in ['BN', 'IR', ''] if roster_slot else False
+
+                                # Get cumulative points for this player through this week
+                                cumulative_points = self._get_player_cumulative_points(player, week_num)
+
+                                # Cache for next week's calculation
+                                cache_key = (team_key, player_id)
+                                current_week_cumulative[cache_key] = cumulative_points
+
+                                # Calculate weekly points using cumulative difference
+                                if week_num == 1:
+                                    # Week 1: cumulative IS the weekly points
+                                    weekly_points = cumulative_points if cumulative_points else 0.0
+                                else:
+                                    # Week N: weekly = cumulative[N] - cumulative[N-1]
+                                    prev_cumulative = prev_week_cumulative.get(cache_key, 0.0)
+                                    if cumulative_points is not None:
+                                        weekly_points = cumulative_points - prev_cumulative
+                                    else:
+                                        weekly_points = 0.0
+
+                                weekly_records.append({
+                                    'season_year': year,
+                                    'week': week_num,
+                                    'team_key': team_key,
+                                    'team_name': team_name,
+                                    'player_id': player_id,
+                                    'player_name': player_name,
+                                    'position': position,
+                                    'roster_slot': roster_slot,
+                                    'started': started,
+                                    'weekly_points': weekly_points,
+                                    'cumulative_points': cumulative_points,
+                                })
+
+                        except Exception as team_error:
+                            error_str = str(team_error)
+                            if '500' in error_str or 'Server Error' in error_str:
+                                logger.debug(f"Server error fetching week {week_num} roster for {team_name}: {team_error}")
+                            else:
+                                logger.warning(f"Error fetching week {week_num} roster for {team_name}: {team_error}")
+                            continue
+
+                # Small delay between matchups to avoid rate limiting
                 time.sleep(0.1)
+
+            except Exception as week_error:
+                logger.warning(f"Error fetching week {week_num} data: {week_error}")
+                continue
 
             # Update previous week cache for next iteration
             prev_week_cumulative = current_week_cumulative.copy()
