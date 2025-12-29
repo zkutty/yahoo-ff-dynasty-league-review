@@ -151,3 +151,4 @@ def calculate_var(
     logger.info(f"Calculated VAR for {merged['VAR'].notna().sum()} players")
 
     return merged
+

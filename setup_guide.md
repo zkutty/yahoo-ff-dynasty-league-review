@@ -145,3 +145,4 @@ Once you have successfully fetched your data:
 4. Adjust AI prompts in `openai_insights.py` to change the narrative style
 
 
+

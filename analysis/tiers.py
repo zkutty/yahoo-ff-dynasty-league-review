@@ -193,3 +193,4 @@ def calculate_tier_hit_rates(df: pd.DataFrame) -> pd.DataFrame:
         f"Calculated tier hit rates for {len(tier_summary)} tier/position combinations"
     )
     return tier_summary
+

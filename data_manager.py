@@ -95,3 +95,4 @@ class DataManager:
         print(f"Saved insight to {file_path}")
 
 
+
