@@ -9,7 +9,8 @@ import config
 
 
 def fetch_league_data(refresh: bool = False, generate_ai: bool = False, start_year: int = None,
-                      end_year: int = None, fetch_weekly_points: bool = False):
+                      end_year: int = None, fetch_weekly_points: bool = False,
+                      start_week: int = 1, end_week: int = 17):
     """Fetch league data from Yahoo Fantasy API.
 
     Args:
@@ -17,7 +18,9 @@ def fetch_league_data(refresh: bool = False, generate_ai: bool = False, start_ye
         generate_ai: If True, generate AI-powered insights (requires OpenAI API key)
         start_year: First year to fetch (default: config.LEAGUE_START_YEAR)
         end_year: Last year to fetch (default: config.CURRENT_YEAR)
-        fetch_weekly_points: If True, fetch weekly player points using cumulative difference method
+        fetch_weekly_points: If True, fetch weekly player points using batch roster stats
+        start_week: First week to fetch (default: 1)
+        end_week: Last week to fetch (default: 17)
     """
     print("=" * 60)
     print("Yahoo Fantasy Football League Review App")
@@ -57,7 +60,9 @@ def fetch_league_data(refresh: bool = False, generate_ai: bool = False, start_ye
                 try:
                     season_data = client.fetch_season_data(
                         year,
-                        fetch_weekly_points=fetch_weekly_points
+                        fetch_weekly_points=fetch_weekly_points,
+                        start_week=start_week,
+                        end_week=end_week
                     )
                     all_data[year] = season_data
                     data_manager.save_season_data(year, season_data)
@@ -203,10 +208,36 @@ def main():
     parser.add_argument(
         '--weekly-points',
         action='store_true',
-        help='Fetch weekly player points using cumulative difference method (slower but provides weekly granularity)'
+        help='Fetch weekly player points using batch roster stats (provides weekly granularity)'
+    )
+    parser.add_argument(
+        '--single-week',
+        type=int,
+        default=None,
+        help='Fetch only a single week (for quick testing). Example: --single-week 1'
+    )
+    parser.add_argument(
+        '--start-week',
+        type=int,
+        default=1,
+        help='First week to fetch (default: 1). Use with --end-week for batch fetching'
+    )
+    parser.add_argument(
+        '--end-week',
+        type=int,
+        default=17,
+        help='Last week to fetch (default: 17). Use with --start-week for batch fetching'
     )
 
     args = parser.parse_args()
+
+    # Handle --single-week override
+    if args.single_week is not None:
+        start_week = args.single_week
+        end_week = args.single_week
+    else:
+        start_week = args.start_week
+        end_week = args.end_week
 
     # Run the main function
     fetch_league_data(
@@ -214,7 +245,9 @@ def main():
         generate_ai=args.generate_ai,
         start_year=args.start_year,
         end_year=args.end_year,
-        fetch_weekly_points=args.weekly_points
+        fetch_weekly_points=args.weekly_points,
+        start_week=start_week,
+        end_week=end_week
     )
 
 
