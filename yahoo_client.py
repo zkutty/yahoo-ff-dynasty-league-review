@@ -1092,8 +1092,9 @@ class YahooFantasyClient:
                         team_name = getattr(team, 'name', '')
 
                         try:
-                            # Get roster from team in matchup context
-                            roster = team.roster()
+                            # Get roster for this specific week (not live/current roster!)
+                            # IMPORTANT: Must pass week_num to get historical roster positions
+                            roster = team.roster(week_num=week_num)
 
                             if not hasattr(roster, 'players'):
                                 continue
