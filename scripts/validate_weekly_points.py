@@ -107,35 +107,8 @@ print("\n3. CHECKING CUMULATIVE POINTS PROGRESSION...")
 print("-"*80)
 
 cumulative_issues = []
-player_weeks = defaultdict(list)
-for record in wpp:
-    player_weeks[record['player_id']].append(record)
-
-for player_id, weeks in player_weeks.items():
-    sorted_weeks = sorted(weeks, key=lambda x: x['week'])
-
-    for i in range(1, len(sorted_weeks)):
-        prev = sorted_weeks[i-1]
-        curr = sorted_weeks[i]
-
-        # Cumulative should never decrease
-        if curr['cumulative_points'] < prev['cumulative_points']:
-            cumulative_issues.append({
-                'player_name': curr['player_name'],
-                'week': curr['week'],
-                'prev_cumulative': prev['cumulative_points'],
-                'curr_cumulative': curr['cumulative_points']
-            })
-
-if cumulative_issues:
-    print(f"\n⚠️  FOUND {len(cumulative_issues)} ISSUES - Cumulative points decreased!")
-    print("\nSample issues:")
-    for issue in cumulative_issues[:5]:
-        print(f"  {issue['player_name']} - Week {issue['week']}")
-        print(f"    Previous week cumulative: {issue['prev_cumulative']:.1f}")
-        print(f"    Current week cumulative: {issue['curr_cumulative']:.1f}")
-else:
-    print("✓ Cumulative points are monotonically increasing")
+# Cumulative points check disabled - we no longer store cumulative points
+print("✓ Skipping cumulative points check (not applicable for direct weekly points)")
 
 # Check 4: Look at actual weekly point values - are they realistic?
 print("\n4. CHECKING FOR UNREALISTIC WEEKLY POINT VALUES...")

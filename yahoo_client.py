@@ -18,7 +18,7 @@ class YahooFantasyClient:
     
     def __init__(self, client_id: str, client_secret: str, league_id: str, refresh_token: str = None):
         """Initialize the Yahoo Fantasy client.
-        
+
         Args:
             client_id: Yahoo API client ID
             client_secret: Yahoo API client secret
@@ -29,6 +29,7 @@ class YahooFantasyClient:
         self.client_secret = client_secret
         self.league_id = league_id
         self.refresh_token = refresh_token
+        self.persist_key = "yahoo_fantasy"  # Cache key for yahoofantasy library
         self.ctx = None
         self.league = None
         
